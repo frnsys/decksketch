@@ -2,6 +2,7 @@ import json
 import requests
 from tqdm import tqdm
 from datetime import datetime
+from collections import defaultdict
 
 CACHE_EXPIRE = 60*60*12
 CACHE_FILE = '.cache.json'
@@ -45,6 +46,13 @@ def render_spoiler(cards):
     total = sum(float(p) for p in prices if p)
     unknown = sum(1 for p in prices if not p)
 
+    types = defaultdict(int)
+    cmcs = defaultdict(int)
+    for card in cards:
+        type = card['type_line'].split(' — ')[0]
+        types[type] += 1
+        cmcs[int(card['cmc'])] += 1
+
     style = '''
         html {
             font-family: monospace;
@@ -74,13 +82,20 @@ def render_spoiler(cards):
         </head>
         <body>
             <main>
+                <div style="margin-bottom:1em;">
+                    <div>{n_cards} cards, {total}</div>
+                    <div>{types}</div>
+                    <div>{cmcs}</div>
+                </div>
                 <ul>
                     {cards}
                 </ul>
-                <div>{total}</div>
             </main>
         </body>
     </html>'''.format(style=style,
+                      cmcs=cmcs,
+                      types=types,
+                      n_cards=len(cards),
                       cards='\n'.join(render_card(c) for c in cards),
                       total='{:.2f}, with {} unknown prices'.format(total, unknown))
     with open('deck.html', 'w') as f:
@@ -98,6 +113,8 @@ if __name__ == '__main__':
         card = get_card(name)
         if card is not None:
             cards.append(card)
+        else:
+            print('No card found for "{}"'.format(name))
 
     render_spoiler(cards)
 
