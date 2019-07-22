@@ -41,7 +41,8 @@ def render_card(card):
         card['image_uris']['small'],
         card['prices']['usd'])
 
-def render_spoiler(cards):
+def render_spoiler(deck):
+    cards = sum((cards for section, cards in deck), [])
     prices = [c['prices']['usd'] for c in cards]
     total = sum(float(p) for p in prices if p)
     unknown = sum(1 for p in prices if not p)
@@ -52,6 +53,12 @@ def render_spoiler(cards):
         type = card['type_line'].split(' — ')[0]
         types[type] += 1
         cmcs[int(card['cmc'])] += 1
+
+    sections = ['''
+        <h2>{} ({})</h2>
+        <ul>{}</ul>
+    '''.format(section, len(cards), '\n'.join(render_card(c) for c in cards))
+                for section, cards in deck]
 
     style = '''
         html {
@@ -87,16 +94,14 @@ def render_spoiler(cards):
                     <div>{types}</div>
                     <div>{cmcs}</div>
                 </div>
-                <ul>
-                    {cards}
-                </ul>
+                {sections}
             </main>
         </body>
     </html>'''.format(style=style,
                       cmcs=cmcs,
                       types=types,
                       n_cards=len(cards),
-                      cards='\n'.join(render_card(c) for c in cards),
+                      sections='\n'.join(sections),
                       total='{:.2f}, with {} unknown prices'.format(total, unknown))
     with open('deck.html', 'w') as f:
         f.write(html)
@@ -105,18 +110,32 @@ def render_spoiler(cards):
 if __name__ == '__main__':
     import sys
     decklist = sys.argv[1]
+    deck = []
+    section = ('Main', [])
     with open(decklist, 'r') as f:
-        deck = [l for l in f.read().splitlines() if l and not l.startswith('#')]
+        for l in f.read().splitlines():
+            if not l: continue
+            if l.startswith('#'):
+                if section[-1]:
+                    deck.append(section)
+                section = (l, [])
+            else:
+                section[-1].append(l)
+        if section[-1]:
+            deck.append(section)
 
-    cards = []
-    for name in tqdm(deck):
-        card = get_card(name)
-        if card is not None:
-            cards.append(card)
-        else:
-            print('No card found for "{}"'.format(name))
+    deck_data = []
+    for section, cards in deck:
+        s = (section, [])
+        for name in cards:
+            card = get_card(name)
+            if card is not None:
+                s[-1].append(card)
+            else:
+                print('No card found for "{}"'.format(name))
+        deck_data.append(s)
 
-    render_spoiler(cards)
+    render_spoiler(deck_data)
 
     with open(CACHE_FILE, 'w') as f:
         json.dump(cache, f)
